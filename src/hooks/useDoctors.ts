@@ -19,17 +19,38 @@ export const useDoctors = (initialFilters: FilterState) => {
           throw new Error("Failed to fetch doctors");
         }
         const data = await response.json();
-        setDoctors(data);
+        
+        // Map the API response to our Doctor interface
+        const formattedDoctors: Doctor[] = data.map((item: any) => ({
+          id: item.id || String(Math.random()),
+          name: item.name || '',
+          specialty: item.specialities ? item.specialities.map((spec: any) => spec.name) : [],
+          experience: parseInt(String(item.experience || '0').match(/\d+/)?.[0] || '0', 10),
+          fees: parseInt(String(item.fees || '0').match(/\d+/)?.[0] || '0', 10),
+          city: item.clinic?.address?.city || '',
+          availability: {
+            clinic: item.in_clinic || false,
+            video: item.video_consult || false,
+          },
+          profilePic: item.photo || '',
+        }));
+        
+        setDoctors(formattedDoctors);
         
         // Extract unique specialties
         const allSpecialties = new Set<string>();
-        data.forEach((doctor: Doctor) => {
-          doctor.specialty.forEach(spec => allSpecialties.add(spec));
+        formattedDoctors.forEach((doctor: Doctor) => {
+          if (doctor.specialty && Array.isArray(doctor.specialty)) {
+            doctor.specialty.forEach(spec => {
+              if (spec) allSpecialties.add(spec);
+            });
+          }
         });
         setSpecialtyOptions(Array.from(allSpecialties).sort());
         
         setLoading(false);
       } catch (err) {
+        console.error("Error fetching doctors:", err);
         setError(err instanceof Error ? err.message : "Unknown error occurred");
         setLoading(false);
       }
@@ -59,7 +80,7 @@ export const useDoctors = (initialFilters: FilterState) => {
     // Filter by specialties
     if (filters.specialties.length > 0) {
       result = result.filter(doctor =>
-        filters.specialties.some(specialty => 
+        doctor.specialty && filters.specialties.some(specialty => 
           doctor.specialty.includes(specialty)
         )
       );
